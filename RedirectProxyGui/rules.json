@@ -1,0 +1,51 @@
+[
+  {
+    "Match": "https://api.production.com/v1/",
+    "To": "http://localhost:3000/v1/",
+    "ApiKey": "my-api-key",
+    "Headers": [
+      {
+        "Name": "X-Custom-From-UI",
+        "Value": "override-value"
+      },
+      {
+        "Name": "Cookie",
+        "Value": "session=abc123; user_pref=dark_mode"
+      }
+    ],
+    "Login": {
+      "LoginUrl": "https://prod.example.com/auth/login",
+      "Method": "POST",
+      "ContentType": "application/json",
+      "Body": "{\"username\":\"admin\",\"password\":\"pass\"}",
+      "Headers": [
+        {
+          "Name": "X-Special",
+          "Value": "1"
+        }
+      ],
+      "CookiePairs": [
+        {
+          "Name": "manualSession",
+          "Value": "manualVal",
+          "Domain": "",
+          "Path": "/"
+        }
+      ]
+    },
+    "Enabled": true
+  },
+  {
+    "Match": "https://api.example.com/",
+    "To": "http://localhost:4000/",
+    "ApiKey": "",
+    "Headers": [
+      {
+        "Name": "X-Development",
+        "Value": "true"
+      }
+    ],
+    "Login": null,
+    "Enabled": true
+  }
+]
