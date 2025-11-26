@@ -25,8 +25,9 @@ namespace RedirectProxyGui
             BtnStart.Click += BtnStart_Click;
             BtnStop.Click += BtnStop_Click;
             BtnReload.Click += BtnReload_Click;
-            RulesList.SelectionChanged += RulesList_SelectionChanged;
-            BtnSaveRule.Click += BtnSaveRule_Click;
+            BtnAddRule.Click += BtnAddRule_Click;
+            BtnEditRule.Click += BtnEditRule_Click;
+            BtnDeleteRule.Click += BtnDeleteRule_Click;
             BtnPerformLogin.Click += BtnPerformLogin_Click;
 
             RefreshRulesList();
@@ -70,7 +71,12 @@ namespace RedirectProxyGui
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
-        private void BtnReload_Click(object sender, RoutedEventArgs e) => RefreshRulesList();
+        private void BtnReload_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshRulesList();
+            MessageBox.Show("Rules reloaded from rules.json", "Success",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
 
         private void RefreshRulesList()
         {
@@ -79,71 +85,92 @@ namespace RedirectProxyGui
                 RulesList.Items.Add(r);
         }
 
-        private void RulesList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private void BtnAddRule_Click(object sender, RoutedEventArgs e)
         {
-            if (RulesList.SelectedItem is Rule r)
+            var editor = new RuleEditorWindow();
+            editor.Owner = this;
+
+            if (editor.ShowDialog() == true && editor.Saved)
             {
-                TxtMatch.Text = r.Match;
-                TxtTo.Text = r.To;
-                TxtApiKey.Text = r.ApiKey;
-                TxtLoginUrl.Text = r.Login?.LoginUrl ?? "";
+                var rules = LoadRulesFromFile();
+                rules.Add(editor.EditedRule);
+                SaveRulesToFile(rules);
+                RefreshRulesList();
+
+                MessageBox.Show("Rule added successfully!", "Success",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
-        private void BtnSaveRule_Click(object sender, RoutedEventArgs e)
+        private void BtnEditRule_Click(object sender, RoutedEventArgs e)
         {
-            var match = TxtMatch.Text.Trim();
-            var to = TxtTo.Text.Trim();
-
-            if (string.IsNullOrEmpty(match) || string.IsNullOrEmpty(to))
+            if (!(RulesList.SelectedItem is Rule selectedRule))
             {
-                MessageBox.Show("Match and To are required", "Validation Error",
+                MessageBox.Show("Please select a rule to edit", "No Selection",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            // load current rules
-            var rules = new List<Rule>();
-            if (File.Exists(_rulesFile))
-            {
-                var j = File.ReadAllText(_rulesFile);
-                rules = JsonSerializer.Deserialize<List<Rule>>(j,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-            }
+            var editor = new RuleEditorWindow(selectedRule);
+            editor.Owner = this;
 
-            // if a rule selected, update it otherwise add new
-            if (RulesList.SelectedItem is Rule sel)
+            if (editor.ShowDialog() == true && editor.Saved)
             {
-                var idx = rules.FindIndex(rr => rr.Match == sel.Match && rr.To == sel.To);
-                if (idx >= 0)
+                var rules = LoadRulesFromFile();
+                var index = FindRuleIndex(rules, selectedRule);
+
+                if (index >= 0)
                 {
-                    rules[idx].Match = match;
-                    rules[idx].To = to;
-                    rules[idx].ApiKey = TxtApiKey.Text.Trim();
-                    rules[idx].Login = string.IsNullOrWhiteSpace(TxtLoginUrl.Text)
-                        ? null
-                        : new LoginConfig { LoginUrl = TxtLoginUrl.Text.Trim() };
+                    rules[index] = editor.EditedRule;
+                    SaveRulesToFile(rules);
+                    RefreshRulesList();
+
+                    MessageBox.Show("Rule updated successfully!", "Success",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show("Could not find rule to update", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
-            else
+        }
+
+        private void BtnDeleteRule_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(RulesList.SelectedItem is Rule selectedRule))
             {
-                rules.Add(new Rule
-                {
-                    Match = match,
-                    To = to,
-                    ApiKey = TxtApiKey.Text.Trim(),
-                    Login = string.IsNullOrWhiteSpace(TxtLoginUrl.Text)
-                        ? null
-                        : new LoginConfig { LoginUrl = TxtLoginUrl.Text.Trim() }
-                });
+                MessageBox.Show("Please select a rule to delete", "No Selection",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
             }
 
-            File.WriteAllText(_rulesFile, JsonSerializer.Serialize(rules,
-                new JsonSerializerOptions { WriteIndented = true }));
+            var result = MessageBox.Show(
+                $"Are you sure you want to delete this rule?\n\nMatch: {selectedRule.Match}\nTo: {selectedRule.To}",
+                "Confirm Delete",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
 
-            RefreshRulesList();
-            MessageBox.Show("Saved rules.json (proxy will auto-reload)", "Success",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            if (result == MessageBoxResult.Yes)
+            {
+                var rules = LoadRulesFromFile();
+                var index = FindRuleIndex(rules, selectedRule);
+
+                if (index >= 0)
+                {
+                    rules.RemoveAt(index);
+                    SaveRulesToFile(rules);
+                    RefreshRulesList();
+
+                    MessageBox.Show("Rule deleted successfully!", "Success",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show("Could not find rule to delete", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
         }
 
         private async void BtnPerformLogin_Click(object sender, RoutedEventArgs e)
@@ -170,11 +197,12 @@ namespace RedirectProxyGui
             var res = await _engine.PerformLoginForRuleAsync(idx);
 
             BtnPerformLogin.IsEnabled = true;
-            BtnPerformLogin.Content = "Perform Login";
+            BtnPerformLogin.Content = "Perform Login for Selected";
 
             if (res.ok)
             {
-                MessageBox.Show($"Login succeeded (HTTP {res.status})", "Success",
+                MessageBox.Show($"Login succeeded (HTTP {res.status})\n\nResponse:\n{res.body?.Substring(0, Math.Min(200, res.body.Length ?? 0))}",
+                    "Success",
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }
             else
@@ -182,6 +210,35 @@ namespace RedirectProxyGui
                 MessageBox.Show($"Login failed: {res.error}", "Error",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private List<Rule> LoadRulesFromFile()
+        {
+            if (!File.Exists(_rulesFile))
+                return new List<Rule>();
+
+            try
+            {
+                var json = File.ReadAllText(_rulesFile);
+                return JsonSerializer.Deserialize<List<Rule>>(json,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<Rule>();
+            }
+            catch
+            {
+                return new List<Rule>();
+            }
+        }
+
+        private void SaveRulesToFile(List<Rule> rules)
+        {
+            var json = JsonSerializer.Serialize(rules, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(_rulesFile, json);
+        }
+
+        private int FindRuleIndex(List<Rule> rules, Rule rule)
+        {
+            // Find by matching Match and To fields
+            return rules.FindIndex(r => r.Match == rule.Match && r.To == rule.To);
         }
 
         protected override void OnClosed(EventArgs e)

@@ -12,32 +12,36 @@
         <!-- Left: Rules -->
         <StackPanel Grid.Column="0" Margin="10" >
             <TextBlock Text="Rules" FontWeight="Bold" FontSize="16"/>
-            <ListBox x:Name="RulesList" Height="380" Margin="0,8,0,8" DisplayMemberPath="Match"/>
-            <WrapPanel Margin="0,8,0,8" HorizontalAlignment="Left">
+            <ListBox x:Name="RulesList" Height="380" Margin="0,8,0,8">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Match}" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding To}" FontSize="11" Foreground="Gray"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Proxy Controls -->
+            <WrapPanel Margin="0,0,0,8" HorizontalAlignment="Left">
                 <Button x:Name="BtnStart" Content="Start Proxy" Width="100" Margin="0,0,8,0"/>
                 <Button x:Name="BtnStop" Content="Stop Proxy" Width="100" Margin="0,0,8,0" IsEnabled="False"/>
-                <Button x:Name="BtnReload" Content="Reload Rules" Width="100"/>
+                <Button x:Name="BtnReload" Content="Reload" Width="80"/>
             </WrapPanel>
 
-            <GroupBox Header="Selected Rule" Margin="0,8,0,0">
+            <!-- Rule Management -->
+            <GroupBox Header="Rule Management" Margin="0,0,0,8">
                 <StackPanel Margin="8">
-                    <TextBlock Text="Match (prefix)"/>
-                    <TextBox x:Name="TxtMatch"/>
-                    <TextBlock Text="To (target prefix)" Margin="0,6,0,0"/>
-                    <TextBox x:Name="TxtTo"/>
-                    <TextBlock Text="API Key (optional)" Margin="0,6,0,0"/>
-                    <TextBox x:Name="TxtApiKey"/>
-                    <TextBlock Text="Login URL (optional)" Margin="0,6,0,0"/>
-                    <TextBox x:Name="TxtLoginUrl"/>
-                    <WrapPanel Margin="0,6,0,0">
-                        <Button x:Name="BtnSaveRule" Content="Save Rule" Width="100"/>
-                        <Button x:Name="BtnPerformLogin" Content="Perform Login" Width="120" Margin="8,0,0,0"/>
-                    </WrapPanel>
+                    <Button x:Name="BtnAddRule" Content="Add New Rule" Margin="0,0,0,6"/>
+                    <Button x:Name="BtnEditRule" Content="Edit Selected Rule" Margin="0,0,0,6"/>
+                    <Button x:Name="BtnDeleteRule" Content="Delete Selected Rule" Margin="0,0,0,6"/>
+                    <Button x:Name="BtnPerformLogin" Content="Perform Login for Selected" Margin="0,0,0,0"/>
                 </StackPanel>
             </GroupBox>
 
-            <TextBlock Text="Notes: set browser proxy to http://localhost:8000" Margin="0,8,0,0" TextWrapping="Wrap"/>
-            <TextBlock Text="Edit rules.json and save for auto-reload" FontStyle="Italic" FontSize="11" Margin="0,6,0,0"/>
+            <TextBlock Text="Notes: set browser proxy to http://localhost:8000" Margin="0,0,0,4" TextWrapping="Wrap" FontSize="11"/>
+            <TextBlock Text="Rules are auto-saved to rules.json and auto-reloaded" FontStyle="Italic" FontSize="10" Foreground="Gray" TextWrapping="Wrap"/>
         </StackPanel>
 
         <!-- Right: Logs -->
