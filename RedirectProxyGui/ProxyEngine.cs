@@ -44,9 +44,17 @@ namespace RedirectProxyGui
             _proxy = new ProxyServer();
             _proxy.BeforeRequest += OnRequest;
             _proxy.BeforeResponse += OnResponse;
-            _proxy.CertificateManager.CreateRootCertificate(false);
-            _proxy.TrustRootCertificate = true;
-            _proxy.ServerCertificateValidationCallback += (s, cert, chain, errors) => true;
+
+            // Create and trust root certificate for HTTPS interception
+            _proxy.CertificateManager.EnsureRootCertificate();
+            _proxy.CertificateManager.TrustRootCertificate(true);
+
+            // Accept all server certificates
+            _proxy.ServerCertificateValidationCallback += (sender, e) =>
+            {
+                // Return true to accept all certificates
+                return true;
+            };
 
             LoadRules();
             WatchRulesFile();
@@ -129,9 +137,11 @@ namespace RedirectProxyGui
                 {
                     var body = await e.GetRequestBody();
                     req.Content = new ByteArrayContent(body);
-                    var ct = e.HttpClient.Request.Headers.GetHeaderValue("Content-Type");
-                    if (!string.IsNullOrEmpty(ct))
-                        req.Content.Headers.TryAddWithoutValidation("Content-Type", ct);
+
+                    // Get Content-Type header
+                    var ctHeader = e.HttpClient.Request.Headers.GetHeaders("Content-Type").FirstOrDefault();
+                    if (ctHeader != null && !string.IsNullOrEmpty(ctHeader.Value))
+                        req.Content.Headers.TryAddWithoutValidation("Content-Type", ctHeader.Value);
                 }
 
                 // set headers
@@ -167,10 +177,15 @@ namespace RedirectProxyGui
                 // send to target
                 using var resp = await client.SendAsync(req);
 
-                // copy response body and headers back to client
+                // copy response status and body back to client
                 var respBytes = await resp.Content.ReadAsByteArrayAsync();
-                var contentType = resp.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
-                e.Ok(resp.StatusCode, contentType, respBytes);
+
+                e.HttpClient.Response.StatusCode = (int)resp.StatusCode;
+                e.HttpClient.Response.StatusDescription = resp.ReasonPhrase ?? string.Empty;
+                e.HttpClient.Response.Body = new MemoryStream(respBytes);
+
+                // Copy response headers
+                e.HttpClient.Response.Headers.Clear();
 
                 foreach (var h in resp.Headers)
                     foreach (var v in h.Value)
@@ -179,8 +194,6 @@ namespace RedirectProxyGui
                 foreach (var h in resp.Content.Headers)
                     foreach (var v in h.Value)
                         e.HttpClient.Response.Headers.AddHeader(h.Key, v);
-
-                e.TerminateSession();
             }
             catch (Exception ex)
             {
