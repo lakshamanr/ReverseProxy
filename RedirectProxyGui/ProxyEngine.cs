@@ -50,9 +50,10 @@ namespace RedirectProxyGui
             _proxy.CertificateManager.TrustRootCertificate(true);
 
             // Accept all server certificates
-            _proxy.ServerCertificateValidationCallback += (sender, e) =>
+            _proxy.ServerCertificateValidationCallback += async (sender, e) =>
             {
                 // Return true to accept all certificates
+                await Task.CompletedTask;
                 return true;
             };
 
@@ -182,7 +183,6 @@ namespace RedirectProxyGui
 
                 e.HttpClient.Response.StatusCode = (int)resp.StatusCode;
                 e.HttpClient.Response.StatusDescription = resp.ReasonPhrase ?? string.Empty;
-                e.HttpClient.Response.Body = new MemoryStream(respBytes);
 
                 // Copy response headers
                 e.HttpClient.Response.Headers.Clear();
@@ -194,6 +194,13 @@ namespace RedirectProxyGui
                 foreach (var h in resp.Content.Headers)
                     foreach (var v in h.Value)
                         e.HttpClient.Response.Headers.AddHeader(h.Key, v);
+
+                // Write response body
+                if (respBytes.Length > 0)
+                {
+                    e.HttpClient.Response.Body.Write(respBytes, 0, respBytes.Length);
+                    e.HttpClient.Response.Body.Position = 0;
+                }
             }
             catch (Exception ex)
             {
